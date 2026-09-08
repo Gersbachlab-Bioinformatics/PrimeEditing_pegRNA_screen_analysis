@@ -2,24 +2,13 @@
 """Quantify per-oligo read counts and reporter editing rates from demultiplexed
 PE HCR-FlowFISH screen FASTQs, for every bin/replicate sample in a directory.
 
-This is the step upstream of `01_generate_count_table.R`, which currently
-assumes reads have already been resolved to a single best-matching oligo_id
-and (for bulk samples) reporter editing has already been quantified. This
-script does that resolution directly: read 1 carries the pegRNA spacer, read
-2 carries a 7 bp barcode followed by the reporter; a read is kept only if
-its independently-matched spacer (by substring search in read 1) and its
-barcode-matched library row (by exact 7 bp prefix match) agree ("perfect
-match"). For each perfect-matched read, the barcode is stripped from read 2
-and the remainder is checked against the library's unedited vs. edited
-reporter sequence to call per-read editing status.
-
-Generalized from an interactive, single-sample, hardcoded-path notebook
-(`Demultiplex_redo/claude_files_PE/030626_pegSTAG1_screen.ipynb`) that did
-this for one STAG1 bulk replicate. Assumes FAM120A's and SV2A's full
-PRIDICT2.0-output library CSVs have the same column schema as STAG1's
-(this was not independently verified locally -- only a reduced 5-column
-reference library is checked into this repo; the full-schema library CSVs
-used here live on HPC).
+This is the step upstream of `01_generate_count_table.R`. Read 1 carries the
+pegRNA spacer, read 2 carries a 7 bp barcode followed by the reporter; a
+read is kept only if its independently-matched spacer (by substring search
+in read 1) and its barcode-matched library row (by exact 7 bp prefix match)
+agree ("perfect match"). For each perfect-matched read, the barcode is
+stripped from read 2 and the remainder is checked against the library's
+unedited vs. edited reporter sequence to call per-read editing status.
 
 Expected pegRNA library CSV columns: barcode, EditedAllele, OriginalAllele,
 min_index, max_index, wide_mutated_target, Spacer-Sequence, class, pegRNA,
@@ -33,8 +22,6 @@ Usage:
 
 Expects FASTQ files named `<sample_name>_read1.fastq` / `<sample_name>_read2.fastq`
 in --fastq-dir, one pair per bin/replicate (e.g. `pegSTAG1_bulk_r1_read1.fastq`).
-Use --strip-prefix if your demultiplexed files carry an extra prefix (e.g.
-"i3N_") not part of the sample name used downstream.
 
 Outputs, mirroring the original notebook's directory layout under
 --output-dir, one row per file except recombination summaries (one row per
@@ -212,7 +199,7 @@ def quantify_sample(
     }
 
 
-def find_sample_pairs(fastq_dir: str, strip_prefix: str | None) -> list[tuple[str, str, str]]:
+def find_sample_pairs(fastq_dir: str) -> list[tuple[str, str, str]]:
     """Return (sample_name, read1_path, read2_path) for every matched pair."""
     fastq_dir_path = Path(fastq_dir)
     pairs = []
@@ -222,10 +209,7 @@ def find_sample_pairs(fastq_dir: str, strip_prefix: str | None) -> list[tuple[st
         if not read2_path.exists():
             print(f"  WARNING: no matching read2 for {read1_path.name}, skipping")
             continue
-        sample_name = stem
-        if strip_prefix and sample_name.startswith(strip_prefix):
-            sample_name = sample_name[len(strip_prefix):]
-        pairs.append((sample_name, str(read1_path), str(read2_path)))
+        pairs.append((stem, str(read1_path), str(read2_path)))
     return pairs
 
 
@@ -238,8 +222,6 @@ def main() -> None:
     parser.add_argument("--spacer-window-start", type=int, default=18)
     parser.add_argument("--spacer-window-end", type=int, default=38)
     parser.add_argument("--barcode-length", type=int, default=7)
-    parser.add_argument("--strip-prefix", default=None,
-                         help='Prefix to remove from FASTQ filenames when deriving sample names, e.g. "i3N_"')
     parser.add_argument("--editing-sample-pattern", default=r"_bulk_r\d+$",
                          help="Regex (matched against sample name) selecting which samples get a "
                               "reporter_editing.csv output; 01_generate_count_table.R only needs this for bulk samples")
@@ -253,7 +235,7 @@ def main() -> None:
     library = load_library(args.library)
     print(f"  {len(library)} library rows")
 
-    pairs = find_sample_pairs(args.fastq_dir, args.strip_prefix)
+    pairs = find_sample_pairs(args.fastq_dir)
     print(f"Found {len(pairs)} sample(s) in {args.fastq_dir}")
 
     editing_pattern = re.compile(args.editing_sample_pattern)
