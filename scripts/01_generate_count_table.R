@@ -1,14 +1,14 @@
 #!/usr/bin/env Rscript
 # Build a per-pegRNA raw count table and reporter-editing table from
-# CRISPResso2-derived per-read mapping files for one PE HCR-FlowFISH screen.
+# per-read mapping files for one PE HCR-FlowFISH screen.
 #
 # For each replicate, three FACS bins are sequenced: a bottom-20%-expression
 # bin ("b20"), a top-20%-expression bin ("t20"), and a bulk unsorted
 # population used to measure library representation and reporter editing
 # rate. Reads are already resolved to a single best-matching oligo_id
 # (perfect match to a library pegRNA/reporter/barcode combination) upstream
-# of this script, by CRISPResso2 alignment of the trimmed reads to the
-# pegRNA library reference.
+# of this script, by 00_quantify_fastq_counts.py (spacer match in read 1 +
+# barcode match in read 2, kept only if both agree).
 #
 # Usage:
 #   Rscript 01_generate_count_table.R <sample_prefix> <n_replicates> <mapped_reads_dir> <reporter_editing_dir> <pegRNA_library.csv> <output_dir>

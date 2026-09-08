@@ -33,17 +33,49 @@ This repository walks through the pipeline scripts using the real FAM120A locus 
 - [BEAN](https://github.com/pinellolab/crispr-bean) (`crispr-bean`) — Ryu et al. 2024, *Nat Genet*, "Joint genotypic and phenotypic outcome modeling improves base editing variant effect quantification"
 - [PRIDICT2.0](https://github.com/uzh-dqbm-cmi/PRIDICT) — pegRNA design and predicted editing efficiency scoring
 - R with dplyr, data.table, ggplot2, ggridges
-- Python 3 with matplotlib
+- Python 3 with matplotlib, pandas, numpy, biopython
 
 ## Repository contents
 
 - `pegRNA_library/FAM120A_pegRNA_library.csv` — the real FAM120A pegRNA library reference (name, target variant, class, locus, spacer sequence) used as a worked example throughout this README.
-- `scripts/01_generate_count_table.R` through `scripts/04_analyze_bean_results.R` — the full count-table/scaling/BEAN/results pipeline, walked through below. The underlying per-read mapping files, count tables, and BEAN output are not included in this repo; only the library reference is.
+- `scripts/00_quantify_fastq_counts.py` through `scripts/04_analyze_bean_results.R` — the full FASTQ/count-table/scaling/BEAN/results pipeline, walked through below. The underlying demultiplexed FASTQs, per-read mapping files, count tables, and BEAN output are not included in this repo; only the library reference is.
 - `scripts/03b_apply_manual_edit_rates.py` — called from `03_run_bean.sh` between `bean qc` and `bean run`; overwrites BEAN's own reporter-based edit calls with the Step 2 scaling factor.
 - `scripts/plot_library_composition.py` — plots pegRNA/target counts per library class directly from a pegRNA library CSV.
 - `scripts/plot_reporter_editing_density.R` — plots the distribution of per-pegRNA reporter editing rates.
 
 ## Pipeline walkthrough: FAM120A
+
+### 0. Quantify reads from demultiplexed FASTQs
+
+```
+python 00_quantify_fastq_counts.py \
+    --library <pegRNA_library.csv> \
+    --fastq-dir <demultiplexed_fastqs/> \
+    --output-dir <library_QC/>
+```
+
+Read 1 carries the pegRNA spacer sequence; read 2 carries a 7 bp barcode
+followed by the self-reporter. Each read is independently resolved to a
+library oligo two ways — matching the spacer by substring search in read 1,
+and matching the barcode by exact 7 bp prefix in read 2 — and kept only if
+both agree ("perfect match"; reads failing quality filtering, at Phred >30
+average per read, are dropped first). The barcode is then stripped from
+read 2 and the remainder checked against the library's unedited vs. edited
+reporter sequence to call per-read editing status. Run once per bin/
+replicate FASTQ pair in the input directory; produces, per sample:
+
+- `read_mapping_filtered/<sample>_mapped_reads_perfect_matches.csv` — the
+  direct input Step 1 expects for every bin (b20/t20/bulk × replicate).
+- `recombination/<sample>_recombination.csv`, `diversity/<sample>_diversity.csv`
+  — QC on barcode/spacer agreement rate and per-oligo read-count evenness.
+- `editing_quantification/<sample>_reporter_editing.csv` (bulk samples only,
+  by default) — the direct input Step 1 expects for reporter editing rate.
+
+This step was generalized from a per-locus, per-sample interactive notebook
+(not included in this repo); it has not been run end-to-end against real
+FASTQ data as part of writing this script, only smoke-tested on synthetic
+reads, so treat it as a starting point to validate against a known-good
+sample's existing output before relying on it for a full re-run.
 
 ### 1. Generate a raw count table and reporter editing rates
 
