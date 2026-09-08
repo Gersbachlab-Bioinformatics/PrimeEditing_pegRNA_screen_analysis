@@ -191,6 +191,14 @@ def quantify_sample(
     pivoted["percent_editing"] = pivoted["match_edited"] / pivoted["total_counts"] * 100
     pivoted = pivoted.reset_index()
 
+    # Carry along any fixed per-oligo library annotations (e.g. PRIDICT2.0's
+    # predicted editing score), matching the original notebook's output,
+    # which grouped/indexed on oligo_id plus this column together (a no-op
+    # for the counts themselves, since it's constant within each oligo_id).
+    if "PRIDICT2_0_editing_Score_deep_HEK" in library.columns:
+        score_lookup = library[["oligo_id", "PRIDICT2_0_editing_Score_deep_HEK"]].drop_duplicates("oligo_id")
+        pivoted = pivoted.merge(score_lookup, on="oligo_id", how="left")
+
     return {
         "mapped_reads_perfect_matches": perfect_match_df,
         "recombination": recombination,
